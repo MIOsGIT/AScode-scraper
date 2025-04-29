@@ -14,7 +14,6 @@ pip install requests beautifulsoup4
 프로젝트 클론 (깃허브에서 내려받기)
 Git이 설치되어 있다면 아래 명령어를 실행하세요.
 git clone https://github.com/MIOsGIT/ascode-downloader.git
-cd ascode-downloader
 
 🔐 쿠키 복사 방법
 크롬에서 http://ascode.org 로그인
@@ -25,16 +24,12 @@ F12 키를 눌러 개발자 도구 열기
 
 좌측 메뉴에서 "Cookies" > "http://ascode.org" 선택
 
-PHPSESSID 와 lastlang 값을 복사
-
-main.py 또는 config.py 안에 다음과 같이 수정
-예시:
-cookies = { "PHPSESSID": "여기에*복사한*세션값", "lastlang": "undefined" }
+PHPSESSID 값을 복사
 
 ▶️ 사용 방법
-터미널 또는 CMD에서 프로젝트 폴더로 이동
+Click! 파일 실행 후
 
-python main.py 실행
+학번, 복사한 쿠키 입력력
 
 💾 저장 구조
 각 문제별 폴더가 자동 생성됨 (./ascode_solutions/문제번호/)
@@ -44,8 +39,6 @@ Accepted 코드만 언어 확장자에 맞춰 저장됨
 
 📌 주의사항
 쿠키가 만료되면 다시 복사해서 붙여넣어야 함
-
-자신의 ID(username)는 main.py에 있는 "20243100" 부분을 수정
 
 🙋‍♀️ 만든 사람
 MIO (MIOsGIT)
