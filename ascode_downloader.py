@@ -3,9 +3,12 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-# === 1. 복사한 쿠키 입력 ===
+# === 1. 사용자 입력으로 쿠키 및 ID 설정 ===
+username = input("▶ 사용자 ID를 입력하세요 (예: 20243100): ").strip()
+phpsessid = input("▶ PHPSESSID 값을 입력하세요: ").strip()
+
 cookies = {
-    "PHPSESSID": "jo6g6ori6d1jmpd6meovv2n9f5",
+    "PHPSESSID": phpsessid,
     "lastlang": "undefined"
 }
 
@@ -13,7 +16,6 @@ cookies = {
 save_root = "./ascode_solutions"
 base_url = "http://ascode.org"
 status_url = f"{base_url}/status.php"
-username = "20243100"  # 본인 사용자 ID
 
 # === 3. 세션 생성 및 헤더/쿠키 적용 ===
 session = requests.Session()
@@ -31,8 +33,6 @@ def check_login_status():
     try:
         check_url = "http://ascode.org/template/ascode/profile.php?138760013"
         resp = session.get(check_url)
-        with open('debug_profile.html', 'w', encoding='utf-8') as f:
-            f.write(resp.text)
         soup = BeautifulSoup(resp.text, 'html.parser')
         logout_link = soup.find('a', string='Logout')
         return logout_link is not None
@@ -42,13 +42,11 @@ def check_login_status():
 
 # === 5. 제출 기록 페이지 가져오기 ===
 def fetch_user_submissions(user_id, top=None, prevtop=None, result="4"):
-    # URL에 'top'과 'prevtop'을 포함하여 페이지를 요청
     url = f"{status_url}?user_id={user_id}&jresult={result}"
     if top:
         url += f"&top={top}"
     if prevtop:
         url += f"&prevtop={prevtop}"
-    
     try:
         resp = session.get(url)
         resp.raise_for_status()
@@ -59,7 +57,7 @@ def fetch_user_submissions(user_id, top=None, prevtop=None, result="4"):
 
 # === 6. 제출 코드 저장 ===
 def save_code_from_page(user_id, top=None, prevtop=None):
-    page_html = fetch_user_submissions(user_id, top, prevtop, result="4")  # AC만 가져오기
+    page_html = fetch_user_submissions(user_id, top, prevtop, result="4")
     if not page_html:
         return False
 
@@ -89,7 +87,6 @@ def save_code_from_page(user_id, top=None, prevtop=None):
         language_cell = cols[lang_idx]
         language_text = language_cell.get_text(strip=True)
 
-        # Edit 링크 찾기
         edit_link = None
         for a_tag in language_cell.find_all('a'):
             if 'edit' in a_tag.get_text().lower():
@@ -154,7 +151,6 @@ def get_file_extension(language):
 def get_next_page_top(soup):
     next_page_link = soup.find('a', string='Next Page')
     if next_page_link:
-        # 'Next Page' 링크에서 top과 prevtop 추출
         next_url = next_page_link.get('href')
         top = next_url.split('top=')[1].split('&')[0]
         prevtop = next_url.split('prevtop=')[1] if 'prevtop' in next_url else None
@@ -183,7 +179,6 @@ def main():
         page_html = fetch_user_submissions(username, top, prevtop)
         if page_html:
             soup = BeautifulSoup(page_html, 'html.parser')
-            # 페이지의 'Next Page' 링크를 찾아 top과 prevtop을 추출
             top, prevtop = get_next_page_top(soup)
             if top:
                 page += 1
