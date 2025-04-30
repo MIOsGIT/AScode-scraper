@@ -44,28 +44,42 @@
       }
     }
 
-    async function startDownload() {
+    function startDownload() {
       const userId = document.getElementById("userId").value;
 
-      const res = await fetch("/download", {
+      fetch("/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
+      }).then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        const logArea = document.getElementById("logBox");
+
+        function read() {
+          reader.read().then(({ done, value }) => {
+            if (done) return;
+            const text = decoder.decode(value);
+            logArea.textContent += text;
+            logArea.scrollTop = logArea.scrollHeight;
+
+            // ZIP 자동 다운로드 처리
+            if (text.includes("ZIP_READY:")) {
+              const zipPath = text.split("ZIP_READY:")[1].trim();
+              const link = document.createElement("a");
+              link.href = `/get_zip?path=${encodeURIComponent(zipPath)}`;
+              link.download = "ascode_codes.zip";
+              link.click();
+            }
+
+            read();
+          });
+        }
+
+        read();
+      }).catch(err => {
+        log("❌ 다운로드 중 오류 발생: " + err.message);
       });
-
-      if (!res.body) {
-        log("❌ 서버 응답 없음");
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        log(chunk.trim());
-      }
     }
   </script>
 </body>

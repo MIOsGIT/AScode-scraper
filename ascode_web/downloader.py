@@ -2,6 +2,7 @@ import os
 import time
 import requests
 from bs4 import BeautifulSoup
+import zipfile
 
 base_url = "http://ascode.org"
 SAVE_ROOT = "./downloaded_codes"
@@ -75,12 +76,30 @@ def get_next_page_top(soup):
         return top, prevtop
     return None, None
 
+def zip_user_codes(user_id):
+    user_folder = f"./downloaded_codes/{user_id}"
+    
+    if not os.path.exists(user_folder):
+        return None
+
+    zip_filename = f"./downloaded_codes/{user_id}_codes.zip"
+    
+    with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(user_folder):
+            for file in files:
+                zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), user_folder))
+    
+    return zip_filename
+
+
+
 def download_user_codes_with_log(session, user_id):
     if not os.path.exists(SAVE_ROOT):
         os.makedirs(SAVE_ROOT)
 
     downloaded = 0
     top = None
+    prev_top = None  # 이전 top 저장
 
     while True:
         url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
@@ -119,9 +138,9 @@ def download_user_codes_with_log(session, user_id):
             code_soup = BeautifulSoup(code_resp.text, 'html.parser')
             code = code_soup.find('pre') or code_soup.find('textarea')
 
-            if code:
+            if code and code.text.strip():
                 extension = get_file_extension(language)
-                folder = os.path.join(SAVE_ROOT, problem_id)
+                folder = os.path.join(SAVE_ROOT, user_id, problem_id)
                 os.makedirs(folder, exist_ok=True)
                 with open(os.path.join(folder, f"solution_{runid}{extension}"), "w", encoding="utf-8") as f:
                     f.write(code.text)
@@ -130,10 +149,19 @@ def download_user_codes_with_log(session, user_id):
             else:
                 yield f"❌ {problem_id}번 코드 다운로드 실패"
 
-            time.sleep(0.5)
+            time.sleep(0.3)
 
+        prev_top = top
         top, _ = get_next_page_top(soup)
-        if not top:
+
+        # 탈출 조건 추가
+        if not top or top == prev_top:
             break
 
     yield f"🎉 총 {downloaded}개 코드 다운로드 완료!"
+
+    zip_path = zip_user_codes(user_id)
+    if zip_path:
+        yield f"ZIP_READY:{os.path.abspath(zip_path)}"
+    else:
+        yield "❌ ZIP 파일 생성에 실패했습니다."
