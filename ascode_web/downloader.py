@@ -91,36 +91,76 @@ def zip_user_codes(user_id):
     
     return zip_filename
 
+import os
+
+def count_files_in_user_folder(user_id):
+    base_folder = os.path.join(SAVE_ROOT, user_id)
+    file_count = 0
+    for _, _, files in os.walk(base_folder):
+        file_count += len(files)
+    return file_count
 
 
 def download_user_codes_with_log(session, user_id):
     if not os.path.exists(SAVE_ROOT):
         os.makedirs(SAVE_ROOT)
 
-    downloaded = 0
+    all_runids = []
     top = None
-    prev_top = None  # 이전 top 저장
+    prev_top = None
+
+    # 1. 전체 제출 runid 수집
+    while True:
+        url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
+        if top:
+            url += f"&top={top}"
+        resp = session.get(url)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        table = soup.find('table')
+        if not table:
+            yield "⚠️ 제출 테이블을 찾을 수 없습니다."
+            return
+        headers = [th.get_text(strip=True).lower() for th in table.find('tr').find_all('th')]
+        try:
+            runid_idx = headers.index('runid')
+        except ValueError:
+            yield "⚠️ 테이블 헤더 파싱 실패"
+            return
+        rows = table.find_all('tr')[1:]
+        for row in rows:
+            runid = row.find_all('td')[runid_idx].text.strip()
+            all_runids.append(runid)
+        prev_top = top
+        top, _ = get_next_page_top(soup)
+        if not top or top == prev_top:
+            break
+
+    unique_runids = list(dict.fromkeys(all_runids))  # preserve order, remove duplicates
+    total_submissions = len(unique_runids)
+    yield f"📦 총 제출 수 확인됨: {total_submissions}개"
+
+    # 2. 다운로드
+    downloaded_runids = set()
+    downloaded_problems = set()
+    top = None
+    prev_top = None
+    completed = 0
 
     while True:
         url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
         if top:
             url += f"&top={top}"
-
         resp = session.get(url)
         soup = BeautifulSoup(resp.text, 'html.parser')
-
         table = soup.find('table')
         if not table:
-            yield "⚠️ 제출 테이블을 찾을 수 없습니다."
             break
-
         headers = [th.get_text(strip=True).lower() for th in table.find('tr').find_all('th')]
         try:
             runid_idx = headers.index('runid')
             problem_idx = headers.index('problem')
             lang_idx = headers.index('language')
         except ValueError:
-            yield "⚠️ 테이블 헤더 파싱 실패"
             break
 
         rows = table.find_all('tr')[1:]
@@ -133,6 +173,13 @@ def download_user_codes_with_log(session, user_id):
             problem_id = cols[problem_idx].text.strip()
             language = cols[lang_idx].text.strip()
 
+            if runid in downloaded_runids:
+                continue
+            downloaded_runids.add(runid)
+            downloaded_problems.add(problem_id)
+            completed += 1
+            percent = (completed / total_submissions) * 100
+
             source_url = f"{base_url}/showsource.php?id={runid}"
             code_resp = session.get(source_url)
             code_soup = BeautifulSoup(code_resp.text, 'html.parser')
@@ -142,23 +189,28 @@ def download_user_codes_with_log(session, user_id):
                 extension = get_file_extension(language)
                 folder = os.path.join(SAVE_ROOT, user_id, problem_id)
                 os.makedirs(folder, exist_ok=True)
-                with open(os.path.join(folder, f"solution_{runid}{extension}"), "w", encoding="utf-8") as f:
-                    f.write(code.text)
-                downloaded += 1
-                yield f"✅ {problem_id}번 코드 다운로드 완료"
+                file_path = os.path.join(folder, f"solution_{runid}{extension}")
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(code.text)
+                    yield f"✅ {problem_id}번 코드 다운로드 완료 [{completed}/{total_submissions}] ({percent:.1f}%)"
+                except Exception as e:
+                    yield f"❌ {problem_id}번 저장 실패: {e} [{completed}/{total_submissions}] ({percent:.1f}%)"
             else:
-                yield f"❌ {problem_id}번 코드 다운로드 실패"
+                yield f"❌ {problem_id}번 코드 다운로드 실패 [{completed}/{total_submissions}] ({percent:.1f}%)"
 
             time.sleep(0.3)
 
         prev_top = top
         top, _ = get_next_page_top(soup)
-
-        # 탈출 조건 추가
         if not top or top == prev_top:
             break
 
-    yield f"🎉 총 {downloaded}개 코드 다운로드 완료!"
+    # 3. 최종 요약
+    problem_count = len(downloaded_problems)
+    yield f"📊 문제 수: {problem_count}개, 제출 수: {total_submissions}개"
+    true_count = count_files_in_user_folder(user_id)
+    yield f"🎉 총 {true_count}개 코드 다운로드 완료!"
 
     zip_path = zip_user_codes(user_id)
     if zip_path:

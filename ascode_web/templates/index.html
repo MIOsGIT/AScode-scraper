@@ -2,18 +2,113 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>AScode-Scraper</title>
+  <title>AScode Scraper</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-box {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 1rem;
+      color: #555;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.3rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    #downloadBtn {
+      background-color: #007bff;
+      color: white;
+      margin-left: 0.5rem;
+    }
+
+    #logBox {
+      background: #1e1e1e;
+      color: #00ff88;
+      padding: 1rem;
+      margin-top: 2rem;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 700px;
+      height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      box-shadow: inset 0 0 5px #00000033;
+    }
+
+    .btn-group {
+      display: flex;
+      justify-content: flex-end;
+    }
+  </style>
 </head>
 <body>
+
   <h1>AScode Scraper</h1>
 
-  <label>아이디: <input type="text" id="userId" /></label><br />
-  <label>비밀번호: <input type="password" id="password" /></label><br />
+  <div class="form-box">
+    <label>
+      아이디:
+      <input type="text" id="userId" placeholder="아이디 입력" />
+    </label>
 
-  <button onclick="login()">로그인</button>
-  <button onclick="startDownload()" id="downloadBtn" disabled>다운로드 시작</button>
+    <label>
+      비밀번호:
+      <input type="password" id="password" placeholder="비밀번호 입력" />
+    </label>
 
-  <pre id="logBox" style="background:#eee; padding:1em; height:300px; overflow:auto;"></pre>
+    <div class="btn-group">
+      <button onclick="login()">로그인</button>
+      <button onclick="startDownload()" id="downloadBtn" disabled>다운로드 시작</button>
+    </div>
+  </div>
+
+  <pre id="logBox"></pre>
 
   <script>
     let isLoggedIn = false;
@@ -63,7 +158,6 @@
             logArea.textContent += text;
             logArea.scrollTop = logArea.scrollHeight;
 
-            // ZIP 자동 다운로드 처리
             if (text.includes("ZIP_READY:")) {
               const zipPath = text.split("ZIP_READY:")[1].trim();
               const link = document.createElement("a");
@@ -81,6 +175,20 @@
         log("❌ 다운로드 중 오류 발생: " + err.message);
       });
     }
+
+    document.addEventListener("DOMContentLoaded", () => {
+    const userIdInput = document.getElementById("userId");
+    const passwordInput = document.getElementById("password");
+
+    function handleEnterKey(e) {
+      if (e.key === "Enter") {
+        login();
+      }
+    }
+
+    userIdInput.addEventListener("keydown", handleEnterKey);
+    passwordInput.addEventListener("keydown", handleEnterKey);
+  });
   </script>
 </body>
 </html>
