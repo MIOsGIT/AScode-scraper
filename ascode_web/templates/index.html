@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>AScode 제출 코드 다운로더</title>
+</head>
+<body>
+  <h1>AScode 제출 코드 다운로더</h1>
+
+  <label>아이디: <input type="text" id="userId" /></label><br />
+  <label>비밀번호: <input type="password" id="password" /></label><br />
+
+  <button onclick="login()">로그인</button>
+  <button onclick="startDownload()" id="downloadBtn" disabled>다운로드 시작</button>
+
+  <pre id="logBox" style="background:#eee; padding:1em; height:300px; overflow:auto;"></pre>
+
+  <script>
+    let isLoggedIn = false;
+
+    function log(msg) {
+      const box = document.getElementById("logBox");
+      box.textContent += msg + "\n";
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function login() {
+      const userId = document.getElementById("userId").value;
+      const password = document.getElementById("password").value;
+
+      const res = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, password: password }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        log("✅ 로그인 성공!");
+        document.getElementById("downloadBtn").disabled = false;
+        isLoggedIn = true;
+      } else {
+        log("❌ 로그인 실패!");
+      }
+    }
+
+    async function startDownload() {
+      const userId = document.getElementById("userId").value;
+
+      const res = await fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+
+      if (!res.body) {
+        log("❌ 서버 응답 없음");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        log(chunk.trim());
+      }
+    }
+  </script>
+</body>
+</html>
