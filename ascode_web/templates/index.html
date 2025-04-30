@@ -2,18 +2,157 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>AScode 제출 코드 다운로더</title>
+  <title>AScode Scraper</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-box {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 1rem;
+      color: #555;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.3rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    #downloadBtn {
+      background-color: #007bff;
+      color: white;
+      margin-left: 0.5rem;
+    }
+
+    #logBox {
+      background: #1e1e1e;
+      color: #00ff88;
+      padding: 1rem;
+      margin-top: 2rem;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 700px;
+      height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      box-shadow: inset 0 0 5px #00000033;
+    }
+
+    .btn-group {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* Custom progress bar wrapper */
+    #progressWrapper {
+      width: 100%;
+      max-width: 700px;
+      margin-top: 1rem;
+    }
+
+    #progressOuter {
+      background: #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+      height: 24px;
+      position: relative;
+    }
+
+    #progressBarCustom {
+      background: linear-gradient(to right, #2196f3, #4caf50);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    #progressLabel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      color: #fff;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <h1>AScode 제출 코드 다운로더</h1>
 
-  <label>아이디: <input type="text" id="userId" /></label><br />
-  <label>비밀번호: <input type="password" id="password" /></label><br />
+  <h1>AScode Scraper</h1>
 
-  <button onclick="login()">로그인</button>
-  <button onclick="startDownload()" id="downloadBtn" disabled>다운로드 시작</button>
+  <div class="form-box">
+    <label>
+      아이디:
+      <input type="text" id="userId" placeholder="아이디 입력" />
+    </label>
 
-  <pre id="logBox" style="background:#eee; padding:1em; height:300px; overflow:auto;"></pre>
+    <label>
+      비밀번호:
+      <input type="password" id="password" placeholder="비밀번호 입력" />
+    </label>
+
+    <div class="btn-group">
+      <button onclick="login()">로그인</button>
+      <button onclick="startDownload()" id="downloadBtn" disabled>다운로드 시작</button>
+    </div>
+  </div>
+
+  <pre id="logBox"></pre>
+
+  <!-- ✅ Custom styled progress bar -->
+  <div id="progressWrapper">
+    <div id="progressOuter">
+      <div id="progressBarCustom"></div>
+      <div id="progressLabel">0%</div>
+    </div>
+  </div>
 
   <script>
     let isLoggedIn = false;
@@ -55,6 +194,8 @@
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         const logArea = document.getElementById("logBox");
+        const progressBar = document.getElementById("progressBarCustom");
+        const progressLabel = document.getElementById("progressLabel");
 
         function read() {
           reader.read().then(({ done, value }) => {
@@ -63,7 +204,17 @@
             logArea.textContent += text;
             logArea.scrollTop = logArea.scrollHeight;
 
-            // ZIP 자동 다운로드 처리
+            // ✅ Extract [current/total] and percent (e.g., [7/73] (9.6%))
+            const match = text.match(/\[(\d+)\/(\d+)]\s+\(([\d.]+)%\)/);
+            if (match) {
+              const current = parseInt(match[1]);
+              const total = parseInt(match[2]);
+              const percent = parseFloat(match[3]);
+              progressBar.style.width = `${percent}%`;
+              progressLabel.textContent = `${current}/${total} (${percent.toFixed(1)}%)`;
+            }
+
+            // ✅ ZIP 다운로드 트리거
             if (text.includes("ZIP_READY:")) {
               const zipPath = text.split("ZIP_READY:")[1].trim();
               const link = document.createElement("a");
@@ -81,6 +232,21 @@
         log("❌ 다운로드 중 오류 발생: " + err.message);
       });
     }
+
+    // ✅ Enter 키로 로그인
+    document.addEventListener("DOMContentLoaded", () => {
+      const userIdInput = document.getElementById("userId");
+      const passwordInput = document.getElementById("password");
+
+      function handleEnterKey(e) {
+        if (e.key === "Enter") {
+          login();
+        }
+      }
+
+      userIdInput.addEventListener("keydown", handleEnterKey);
+      passwordInput.addEventListener("keydown", handleEnterKey);
+    });
   </script>
 </body>
 </html>
