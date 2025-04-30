@@ -3,7 +3,7 @@ from flask import Flask, request, render_template, session, Response, jsonify, s
 from downloader import login as ascode_login, download_user_codes_with_log
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_here"
+app.secret_key = os.environ.get("SECRET_KEY", "temporary-secret-key")
 
 user_sessions = {}
 
@@ -34,10 +34,8 @@ def download():
         if not sess:
             yield "❌ 로그인 세션 없음\n"
             return
-
-        from downloader import download_user_codes_with_log
         for log_msg in download_user_codes_with_log(sess, user_id):
-            yield log_msg + "\n"  # 실시간 로그 메시지 전달
+            yield log_msg + "\n"
 
     return Response(generate_logs(), mimetype="text/plain")
 
@@ -48,5 +46,6 @@ def get_zip():
         return send_file(zip_path, as_attachment=True)
     return "❌ 파일이 존재하지 않습니다.", 404
 
+# 🚫 app.run()은 개발용으로만 사용
 if __name__ == "__main__":
-    app.run(debug=True, threaded=True)  # threaded=True로 요청을 동시에 처리하도록 함
+    app.run(debug=True, threaded=True)  # 개발 테스트용일 때만 실행

@@ -1,4 +1,4 @@
-# AScode-Scraper
+# AScode-scraper
 
 🎯 AScode 자동 코드 백업 스크립트
 AScode 온라인 저지 사이트에서 로그인 쿠키를 기반으로 본인의 Accepted(AC) 코드만 자동으로 다운로드하고 정리해주는 Python 스크립트입니다.
