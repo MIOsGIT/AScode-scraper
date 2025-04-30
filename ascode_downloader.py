@@ -3,35 +3,52 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-# === 1. 사용자 입력으로 쿠키 및 ID 설정 ===
+# === 1. 사용자 입력으로 ID와 비밀번호 설정 ===
 username = input("▶ 사용자 ID를 입력하세요 (예: 20243100): ").strip()
-phpsessid = input("▶ PHPSESSID 값을 입력하세요: ").strip()
-
-cookies = {
-    "PHPSESSID": phpsessid,
-    "lastlang": "undefined"
-}
+password = input("▶ 비밀번호를 입력하세요: ").strip()
 
 # === 2. 기본 설정 ===
 save_root = "./ascode_solutions"
 base_url = "http://ascode.org"
 status_url = f"{base_url}/status.php"
 
-# === 3. 세션 생성 및 헤더/쿠키 적용 ===
-session = requests.Session()
-session.cookies.update(cookies)
-session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-    'Referer': 'http://ascode.org/modifypage.php',
-    'Accept': '*/*',
-    'Accept-Encoding': 'gzip, deflate',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-})
+# === 3. 로그인 함수 추가 ===
+def login(username, password):
+    login_url = f"{base_url}/login.php"
+    session = requests.Session()
+    
+    # 로그인 페이지에서 폼 정보 가져오기
+    login_page_url = f"{base_url}/loginpage.php"
+    resp = session.get(login_page_url)
+    
+    # 로그인 요청
+    login_data = {
+        "user_id": username,
+        "password": password
+    }
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+        'Referer': login_page_url,
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
+    
+    resp = session.post(login_url, data=login_data, headers=headers, allow_redirects=True)
+    
+    # 로그인 성공 여부 확인
+    if check_login_status(session):
+        print(f"✅ {username}님으로 성공적으로 로그인되었습니다.")
+        return session
+    else:
+        print("❌ 로그인에 실패했습니다. 사용자 ID와 비밀번호를 확인하세요.")
+        return None
 
-# === 4. 로그인 상태 확인 ===
-def check_login_status():
+# === 4. 로그인 상태 확인 함수 수정 ===
+def check_login_status(session):
     try:
-        check_url = "http://ascode.org/template/ascode/profile.php?138760013"
+        check_url = f"{base_url}/template/ascode/profile.php?138760013"
         resp = session.get(check_url)
         soup = BeautifulSoup(resp.text, 'html.parser')
         logout_link = soup.find('a', string='Logout')
@@ -41,7 +58,7 @@ def check_login_status():
         return False
 
 # === 5. 제출 기록 페이지 가져오기 ===
-def fetch_user_submissions(user_id, top=None, prevtop=None, result="4"):
+def fetch_user_submissions(session, user_id, top=None, prevtop=None, result="4"):
     url = f"{status_url}?user_id={user_id}&jresult={result}"
     if top:
         url += f"&top={top}"
@@ -55,9 +72,9 @@ def fetch_user_submissions(user_id, top=None, prevtop=None, result="4"):
         print(f"제출 기록 가져오기 실패: {e}")
         return None
 
-# === 6. 제출 코드 저장 ===
-def save_code_from_page(user_id, top=None, prevtop=None):
-    page_html = fetch_user_submissions(user_id, top, prevtop, result="4")
+# === 6. 제출 코드 저장 함수 수정 ===
+def save_code_from_page(session, user_id, top=None, prevtop=None):
+    page_html = fetch_user_submissions(session, user_id, top, prevtop, result="4")
     if not page_html:
         return False
 
@@ -131,7 +148,7 @@ def save_code_from_page(user_id, top=None, prevtop=None):
         time.sleep(1)
     return True
 
-# === 7. 파일 확장자 매칭 ===
+# === 7. 파일 확장자 매칭 함수 (변경 없음) ===
 def get_file_extension(language):
     language = language.lower()
     if "c++" in language or "cpp" in language:
@@ -147,7 +164,7 @@ def get_file_extension(language):
     else:
         return ".txt"
 
-# === 8. 페이지 내비게이션 처리 ===
+# === 8. 페이지 내비게이션 처리 함수 (변경 없음) ===
 def get_next_page_top(soup):
     next_page_link = soup.find('a', string='Next Page')
     if next_page_link:
@@ -157,13 +174,16 @@ def get_next_page_top(soup):
         return top, prevtop
     return None, None
 
-# === 9. 메인 ===
+# === 9. 메인 함수 수정 ===
 def main():
     if not os.path.exists(save_root):
         os.makedirs(save_root)
-    if not check_login_status():
-        print("❌ 쿠키가 올바르지 않거나 만료되었습니다. 브라우저에서 쿠키를 새로 복사하세요.")
+    
+    # 로그인 처리
+    session = login(username, password)
+    if not session:
         return
+    
     print(f"✅ AScode.org에 로그인된 상태입니다. 사용자: {username}")
     page = 1
     max_pages = 20
@@ -172,11 +192,11 @@ def main():
 
     while page <= max_pages:
         print(f"====== 페이지 {page} 처리 시작 ======")
-        if not save_code_from_page(username, top, prevtop):
+        if not save_code_from_page(session, username, top, prevtop):
             print(f"페이지 {page}에서 처리 중단 - 더 이상 페이지가 없거나 오류 발생")
             break
 
-        page_html = fetch_user_submissions(username, top, prevtop)
+        page_html = fetch_user_submissions(session, username, top, prevtop)
         if page_html:
             soup = BeautifulSoup(page_html, 'html.parser')
             top, prevtop = get_next_page_top(soup)
