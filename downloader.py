@@ -261,66 +261,62 @@ def get_submission_list(session, user_id):
 
 
 def download_selected_runids(session, user_id, runid_list):
-    from urllib.parse import urlencode
-
     os.makedirs(SAVE_ROOT, exist_ok=True)
     downloaded_problems = set()
     completed = 0
     total = len(runid_list)
 
     for runid in runid_list:
-        url = f"{base_url}/showsource.php?id={runid}"
+        # 코드 가져오기
         try:
-            resp = session.get(url)
+            resp = session.get(f"{base_url}/showsource.php?id={runid}")
             soup = BeautifulSoup(resp.text, "html.parser")
             code = soup.find("pre") or soup.find("textarea")
         except Exception as e:
-            yield f"❌ RunID {runid} 요청 실패: {e}"
+            completed += 1
+            percent = (completed / total) * 100 if total else 0.0
+            yield f"❌ RunID {runid} 요청 실패: {e} [{completed}/{total}] ({percent:.1f}%)"
             continue
 
-        # 문제 ID, 언어 추출
-        status_url = f"{base_url}/status.php?top={runid}"
-        status_page = session.get(status_url)
-        status_soup = BeautifulSoup(status_page.text, "html.parser")
-        table = status_soup.find("table")
-        if table:
-            headers = [th.get_text(strip=True).lower() for th in table.find("tr").find_all("th")]
-            rows = table.find_all("tr")[1:]
-            for row in rows:
-                cols = row.find_all("td")
-                if len(cols) < len(headers): continue
-                try:
+        # 문제 ID, 언어 가져오기
+        problem_id = "unknown"
+        language = "txt"
+        try:
+            status_url = f"{base_url}/status.php?top={runid}"
+            status_page = session.get(status_url)
+            status_soup = BeautifulSoup(status_page.text, "html.parser")
+            table = status_soup.find("table")
+            if table:
+                headers = [th.get_text(strip=True).lower() for th in table.find("tr").find_all("th")]
+                rows = table.find_all("tr")[1:]
+                for row in rows:
+                    cols = row.find_all("td")
+                    if len(cols) < len(headers): continue
                     problem_idx = headers.index('problem')
                     lang_idx = headers.index('language')
                     problem_id = cols[problem_idx].text.strip()
                     language = cols[lang_idx].text.strip()
-                except:
-                    problem_id = "unknown"
-                    language = "txt"
-        else:
-            problem_id = "unknown"
-            language = "txt"
+                    break
+        except:
+            pass  # 기본값 유지
 
+        # 파일 저장
         extension = get_file_extension(language)
         folder = os.path.join(SAVE_ROOT, user_id, problem_id)
         os.makedirs(folder, exist_ok=True)
-        file_path = os.path.join(folder, f"solution_{runid}{extension}")
+        file_path = os.path.join(folder, f"{problem_id}{extension}")
+        completed += 1
+        percent = (completed / total) * 100 if total else 0.0
 
         if code and code.text.strip():
-            extension = get_file_extension(language)
-            folder = os.path.join(SAVE_ROOT, user_id, problem_id)
-            os.makedirs(folder, exist_ok=True)
-            file_path = os.path.join(folder, f"{problem_id}{extension}")
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(code.text)
+                downloaded_problems.add(problem_id)
                 yield f"✅ {problem_id}번 코드 다운로드 완료 [{completed}/{total}] ({percent:.1f}%)"
             except Exception as e:
                 yield f"❌ {problem_id}번 저장 실패: {e} [{completed}/{total}] ({percent:.1f}%)"
-
         else:
-            completed += 1
-            percent = (completed / total) * 100
             yield f"❌ {problem_id}번 코드 없음 [{completed}/{total}] ({percent:.1f}%)"
 
         time.sleep(DOWNLOAD_DELAY)
@@ -331,4 +327,3 @@ def download_selected_runids(session, user_id, runid_list):
         yield f"ZIP_READY:{os.path.abspath(zip_path)}"
     else:
         yield "❌ ZIP 파일 생성 실패"
-

@@ -168,6 +168,7 @@
   </div>
 
   <div id="mainContainer">
+    <button onclick="toggleAllCheckboxes()" id="toggleSelectBtn" style="margin-bottom: 0.5rem; display: none;">전체 선택</button>
     <div id="submissionsContainer"></div>
     <pre id="logBox"></pre>
   </div>
@@ -212,22 +213,26 @@
     }
 
     async function loadSubmissions() {
-      const userId = document.getElementById("userId").value;
-      const res = await fetch(`/submissions?user_id=${encodeURIComponent(userId)}`);
-      const data = await res.json();
-      const container = document.getElementById("submissionsContainer");
+  const userId = document.getElementById("userId").value;
+  const res = await fetch(`/submissions?user_id=${encodeURIComponent(userId)}`);
+  const data = await res.json();
+  const container = document.getElementById("submissionsContainer");
 
-      if (data.success) {
-        const html = data.submissions.map(sub => {
-          const cleanLang = sub.language.split("/")[0].trim();
-          return `<label><input type="checkbox" value="${sub.runid}" /> ${sub.problem_id} (${cleanLang})</label>`;
-        }).join("");
-        container.innerHTML = `<strong>📋 제출 기록 (${data.submissions.length}개)</strong><br/>` + html;
-        document.getElementById("downloadSelectedBtn").style.display = "inline-block";
-      } else {
-        container.innerHTML = "⚠️ 제출 목록을 불러오지 못했습니다.";
-      }
-    }
+  if (data.success) {
+    const html = data.submissions.map(sub => {
+      const cleanLang = sub.language.split("/")[0].trim();
+      return `<label><input type="checkbox" class="submissionCheckbox" value="${sub.runid}" /> ${sub.problem_id} (${cleanLang})</label>`;
+    }).join("");
+    container.innerHTML = `<strong>📋 제출 기록 (${data.submissions.length}개)</strong><br/>` + html;
+
+    document.getElementById("downloadSelectedBtn").style.display = "inline-block";
+    document.getElementById("toggleSelectBtn").style.display = "inline-block";
+    document.getElementById("toggleSelectBtn").textContent = "전체 선택";
+  } else {
+    container.innerHTML = "⚠️ 제출 목록을 불러오지 못했습니다.";
+  }
+}
+
 
     function formatEta(seconds) {
       if (seconds == null || isNaN(seconds)) return "";
@@ -323,6 +328,18 @@
         }
       });
     }
+
+
+    function toggleAllCheckboxes() {
+  const container = document.getElementById("submissionsContainer");
+  const checkboxes = container.querySelectorAll("input[type='checkbox']");
+  const button = document.getElementById("toggleSelectBtn");
+  const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+  checkboxes.forEach(cb => cb.checked = !allChecked);
+  button.textContent = allChecked ? "전체 선택" : "전체 해제";
+}
+
   </script>
 </body>
 </html>
