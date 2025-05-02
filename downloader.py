@@ -272,21 +272,19 @@ def download_selected_runids(session, user_id, runids):
         code_soup = BeautifulSoup(code_resp.text, 'html.parser')
         code = code_soup.find('pre') or code_soup.find('textarea')
 
-        # 문제 ID와 언어 추출 시도
-        problem_id = f"problem_{runid}"
-        language = "txt"
-        try:
-            status_url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
-            resp = session.get(status_url)
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            row = soup.find(string=runid)
-            if row:
-                tr = row.find_parent("tr")
-                tds = tr.find_all("td")
-                problem_id = tds[2].text.strip()
-                language = tds[4].text.strip()
-        except:
-            pass
+        # problem id / language 추출
+        status_url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
+        resp = session.get(status_url)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        row = soup.find(string=runid)
+        if row:
+            tr = row.find_parent("tr")
+            tds = tr.find_all("td")
+            problem_id = tds[2].text.strip()
+            language = tds[4].text.strip()
+        else:
+            problem_id = "unknown"
+            language = "txt"
 
         downloaded_problems.add(problem_id)
 
