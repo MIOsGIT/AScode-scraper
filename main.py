@@ -37,13 +37,14 @@ async def download(request: Request, background_tasks: BackgroundTasks):
     download_status[user_id] = {"status": "running", "logs": [], "zip_path": None}
 
     def run_download():
-        logs = []
         zip_path = None
         for log in download_user_codes_with_log(sess, user_id):
-            logs.append(log)
+            # 실시간으로 logs를 누적 저장
+            download_status[user_id]["logs"].append(log)
             if log.startswith("ZIP_READY:"):
                 zip_path = log.split("ZIP_READY:")[1].strip()
-        download_status[user_id] = {"status": "done", "logs": logs, "zip_path": zip_path}
+                download_status[user_id]["zip_path"] = zip_path
+        download_status[user_id]["status"] = "done"
 
     background_tasks.add_task(run_download)
     return JSONResponse({"success": True, "message": "다운로드가 백그라운드에서 시작되었습니다."})
