@@ -24,20 +24,32 @@ async def login(request: Request):
         return JSONResponse({"success": True})
     return JSONResponse({"success": False})
 
+# 백그라운드 태스크 등록용 딕셔너리
+background_tasks = {}
+
 @app.post("/download")
-async def download(request: Request):
+async def download(request: Request, background_tasks_param: BackgroundTasks):
     data = await request.json()
-    user_id = data.get("user_id")
+    user_id = data["user_id"]
     sess = user_sessions.get(user_id)
+    
+    if not sess:
+        return {"success": False, "message": "세션 없음"}
 
-    async def stream_logs():
-        if not sess:
-            yield "❌ 로그인 세션 없음\n"
-            return
-        for log_msg in download_user_codes_with_log(sess, user_id):
-            yield log_msg + "\n"
+    def run_download():
+        logs = []
+        for log in download_user_codes_with_log(sess, user_id):
+            logs.append(log)
+        background_tasks[user_id] = {
+            "status": "done",
+            "logs": logs
+        }
 
-    return StreamingResponse(stream_logs(), media_type="text/plain")
+    background_tasks[user_id] = {"status": "running"}
+    background_tasks_param.add_task(run_download)
+
+    return {"success": True, "message": "백그라운드 다운로드 시작"}
+
 
 @app.get("/get_zip")
 async def get_zip(path: str):
