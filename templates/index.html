@@ -86,7 +86,6 @@
       justify-content: flex-end;
     }
 
-    /* Custom progress bar wrapper */
     #progressWrapper {
       width: 100%;
       max-width: 700px;
@@ -124,7 +123,6 @@
   </style>
 </head>
 <body>
-
   <h1>AScode Scraper</h1>
 
   <div class="form-box">
@@ -146,7 +144,6 @@
 
   <pre id="logBox"></pre>
 
-  <!-- ✅ Custom styled progress bar -->
   <div id="progressWrapper">
     <div id="progressOuter">
       <div id="progressBarCustom"></div>
@@ -156,6 +153,7 @@
 
   <script>
     let isLoggedIn = false;
+    let pollingInterval = null;
 
     function log(msg) {
       const box = document.getElementById("logBox");
@@ -170,7 +168,7 @@
       const res = await fetch("/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, password: password }),
+        body: JSON.stringify({ user_id: userId, password: password })
       });
 
       const result = await res.json();
@@ -185,55 +183,68 @@
 
     function startDownload() {
       const userId = document.getElementById("userId").value;
+      log("📥 다운로드를 시작합니다...");
 
       fetch("/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId }),
-      }).then(response => {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        const logArea = document.getElementById("logBox");
-        const progressBar = document.getElementById("progressBarCustom");
-        const progressLabel = document.getElementById("progressLabel");
-
-        function read() {
-          reader.read().then(({ done, value }) => {
-            if (done) return;
-            const text = decoder.decode(value);
-            logArea.textContent += text;
-            logArea.scrollTop = logArea.scrollHeight;
-
-            // ✅ Extract [current/total] and percent (e.g., [7/73] (9.6%))
-            const match = text.match(/\[(\d+)\/(\d+)]\s+\(([\d.]+)%\)/);
-            if (match) {
-              const current = parseInt(match[1]);
-              const total = parseInt(match[2]);
-              const percent = parseFloat(match[3]);
-              progressBar.style.width = `${percent}%`;
-              progressLabel.textContent = `${current}/${total} (${percent.toFixed(1)}%)`;
-            }
-
-            // ✅ ZIP 다운로드 트리거
-            if (text.includes("ZIP_READY:")) {
-              const zipPath = text.split("ZIP_READY:")[1].trim();
-              const link = document.createElement("a");
-              link.href = `/get_zip?path=${encodeURIComponent(zipPath)}`;
-              link.download = "ascode_codes.zip";
-              link.click();
-            }
-
-            read();
-          });
+        body: JSON.stringify({ user_id: userId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          log("⏳ 백그라운드 다운로드 시작됨...");
+          pollStatus(userId);
+        } else {
+          log("❌ 다운로드 시작 실패: " + data.message);
         }
-
-        read();
-      }).catch(err => {
-        log("❌ 다운로드 중 오류 발생: " + err.message);
       });
     }
 
-    // ✅ Enter 키로 로그인
+    function updateProgress(logs) {
+      const bar = document.getElementById("progressBarCustom");
+      const label = document.getElementById("progressLabel");
+
+      const last = logs[logs.length - 1];
+      const match = last && last.match(/\[(\d+)\/(\d+)]\s+\((\d+(?:\.\d+)?)%\)/);
+      if (match) {
+        const current = parseInt(match[1]);
+        const total = parseInt(match[2]);
+        const percent = parseFloat(match[3]);
+
+        bar.style.width = `${percent}%`;
+        label.textContent = `${current}/${total} (${percent.toFixed(1)}%)`;
+      }
+    }
+
+    function pollStatus(userId) {
+      if (pollingInterval) clearInterval(pollingInterval);
+
+      pollingInterval = setInterval(() => {
+        fetch(`/status?user_id=${encodeURIComponent(userId)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (Array.isArray(data.logs)) {
+              const logBox = document.getElementById("logBox");
+              logBox.textContent = data.logs.join("\n");
+              logBox.scrollTop = logBox.scrollHeight;
+              updateProgress(data.logs);
+            }
+
+            if (data.status === "done") {
+              clearInterval(pollingInterval);
+              log("🎉 다운로드 완료!");
+              if (data.zip_path) {
+                const link = document.createElement("a");
+                link.href = `/get_zip?path=${encodeURIComponent(data.zip_path)}`;
+                link.download = "ascode_codes.zip";
+                link.click();
+              }
+            }
+          });
+      }, 1500);
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       const userIdInput = document.getElementById("userId");
       const passwordInput = document.getElementById("password");
