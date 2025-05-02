@@ -130,6 +130,21 @@
     #downloadLinkWrapper {
       margin-top: 1rem;
     }
+
+    #submissionsContainer {
+      margin-top: 2rem;
+      max-width: 700px;
+      width: 100%;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    #submissionsContainer label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -148,10 +163,12 @@
 
     <div class="btn-group">
       <button onclick="login()">로그인</button>
-      <button onclick="startDownload()" id="downloadBtn" disabled>다운로드 시작</button>
+      <button onclick="startDownload()" id="downloadBtn" disabled>전체 다운로드</button>
     </div>
+    <button onclick="downloadSelected()" id="downloadSelectedBtn" style="margin-top: 1rem; display: none;">선택 다운로드</button>
   </div>
 
+  <div id="submissionsContainer"></div>
   <pre id="logBox"></pre>
 
   <div id="progressWrapper">
@@ -189,8 +206,23 @@
         log("✅ 로그인 성공!");
         document.getElementById("downloadBtn").disabled = false;
         isLoggedIn = true;
+        loadSubmissions();
       } else {
         log("❌ 로그인 실패!");
+      }
+    }
+
+    async function loadSubmissions() {
+      const userId = document.getElementById("userId").value;
+      const res = await fetch(`/submissions?user_id=${encodeURIComponent(userId)}`);
+      const data = await res.json();
+      const container = document.getElementById("submissionsContainer");
+      if (data.success) {
+        const html = data.submissions.map(sub => `<label><input type="checkbox" value="${sub.runid}" /> ${sub.problem_id} - ${sub.language}</label>`).join("");
+        container.innerHTML = `<strong>📋 제출 기록 (${data.submissions.length}개)</strong><br/>` + html;
+        document.getElementById("downloadSelectedBtn").style.display = "inline-block";
+      } else {
+        container.innerHTML = "⚠️ 제출 목록을 불러오지 못했습니다.";
       }
     }
 
@@ -209,7 +241,7 @@
       if (data.progress) {
         const { current, total, percent } = data.progress;
         bar.style.width = `${percent}%`;
-        label.textContent = `${current}/${total} (${percent.toFixed(1)}%)`;
+        label.textContent = `[${current}/${total}] (${percent.toFixed(1)}%)`;
       }
 
       if (data.eta_seconds !== undefined) {
@@ -246,7 +278,7 @@
 
     function startDownload() {
       const userId = document.getElementById("userId").value;
-      log("📥 다운로드를 시작합니다...");
+      log("📥 전체 다운로드를 시작합니다...");
 
       fetch("/download", {
         method: "POST",
@@ -261,6 +293,29 @@
           pollStatus(userId);
         } else {
           log("❌ 다운로드 시작 실패: " + data.message);
+        }
+      });
+    }
+
+    function downloadSelected() {
+      const userId = document.getElementById("userId").value;
+      const runids = Array.from(document.querySelectorAll("#submissionsContainer input[type='checkbox']:checked")).map(cb => cb.value);
+      if (runids.length === 0) {
+        alert("다운받을 제출을 선택해주세요!");
+        return;
+      }
+      log(`📥 선택한 ${runids.length}개의 제출 다운로드 시작...`);
+      fetch("/download_selected", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, runids })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          pollStatus(userId);
+        } else {
+          log("❌ 선택 다운로드 실패: " + data.message);
         }
       });
     }
