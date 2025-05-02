@@ -2,12 +2,14 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from downloader import login as ascode_login, download_user_codes_with_log
-import os
+import os, time
+from threading import Thread
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
 user_sessions = {}
-download_status = {}  # user_id -> {status: "running"|"done", logs: [...], zip_path: str}
+download_status = {}  # user_id -> dict(status, logs, zip_path, start_time, progress)
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -34,24 +36,67 @@ async def download(request: Request, background_tasks: BackgroundTasks):
     if not sess:
         return JSONResponse({"success": False, "message": "세션이 없습니다."})
 
-    download_status[user_id] = {"status": "running", "logs": [], "zip_path": None}
+    # 초기화
+    download_status[user_id] = {
+        "status": "running",
+        "logs": [],
+        "zip_path": None,
+        "start_time": time.time(),
+        "progress": {"current": 0, "total": 0, "percent": 0.0}
+    }
 
     def run_download():
         zip_path = None
         for log in download_user_codes_with_log(sess, user_id):
-            # 실시간으로 logs를 누적 저장
             download_status[user_id]["logs"].append(log)
+
+            # ZIP 파일 경로 감지
             if log.startswith("ZIP_READY:"):
                 zip_path = log.split("ZIP_READY:")[1].strip()
                 download_status[user_id]["zip_path"] = zip_path
+
+            # 진행률 정보 감지
+            if log.startswith("[") and "/" in log and "%" in log:
+                import re
+                match = re.search(r"\[(\d+)/(\d+)]\s+\((\d+(?:\.\d+)?)%\)", log)
+                if match:
+                    download_status[user_id]["progress"] = {
+                        "current": int(match[1]),
+                        "total": int(match[2]),
+                        "percent": float(match[3])
+                    }
+
         download_status[user_id]["status"] = "done"
+
+        # ✅ ZIP 파일 삭제 예약 (1시간 뒤)
+        if zip_path:
+            def delete_zip_later(path, delay=3600):
+                time.sleep(delay)
+                if os.path.exists(path):
+                    os.remove(path)
+            Thread(target=delete_zip_later, args=(zip_path,), daemon=True).start()
 
     background_tasks.add_task(run_download)
     return JSONResponse({"success": True, "message": "다운로드가 백그라운드에서 시작되었습니다."})
 
 @app.get("/status")
 async def status(user_id: str):
-    return download_status.get(user_id, {"status": "not_started"})
+    status_info = download_status.get(user_id)
+    if not status_info:
+        return {"status": "not_started"}
+
+    elapsed = time.time() - status_info.get("start_time", time.time())
+    progress = status_info.get("progress", {"current": 0, "total": 0, "percent": 0.0})
+    eta = None
+
+    if progress["percent"] > 0:
+        total_estimated = elapsed / (progress["percent"] / 100)
+        eta = int(total_estimated - elapsed)
+
+    return {
+        **status_info,
+        "eta_seconds": eta
+    }
 
 @app.get("/get_zip")
 async def get_zip(path: str):

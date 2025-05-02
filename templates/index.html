@@ -120,6 +120,16 @@
       color: #fff;
       font-weight: bold;
     }
+
+    #etaDisplay {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    #downloadLinkWrapper {
+      margin-top: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -149,7 +159,10 @@
       <div id="progressBarCustom"></div>
       <div id="progressLabel">0%</div>
     </div>
+    <div id="etaDisplay"></div>
   </div>
+
+  <div id="downloadLinkWrapper"></div>
 
   <script>
     let isLoggedIn = false;
@@ -181,39 +194,26 @@
       }
     }
 
-    function startDownload() {
-      const userId = document.getElementById("userId").value;
-      log("📥 다운로드를 시작합니다...");
-
-      fetch("/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          log("⏳ 백그라운드 다운로드 시작됨...");
-          pollStatus(userId);
-        } else {
-          log("❌ 다운로드 시작 실패: " + data.message);
-        }
-      });
+    function formatEta(seconds) {
+      if (seconds == null || isNaN(seconds)) return "";
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `⏳ 예상 남은 시간: ${mins}분 ${secs}초`;
     }
 
-    function updateProgress(logs) {
+    function updateProgressUI(data) {
       const bar = document.getElementById("progressBarCustom");
       const label = document.getElementById("progressLabel");
+      const eta = document.getElementById("etaDisplay");
 
-      const last = logs[logs.length - 1];
-      const match = last && last.match(/\[(\d+)\/(\d+)]\s+\((\d+(?:\.\d+)?)%\)/);
-      if (match) {
-        const current = parseInt(match[1]);
-        const total = parseInt(match[2]);
-        const percent = parseFloat(match[3]);
-
+      if (data.progress) {
+        const { current, total, percent } = data.progress;
         bar.style.width = `${percent}%`;
         label.textContent = `${current}/${total} (${percent.toFixed(1)}%)`;
+      }
+
+      if (data.eta_seconds !== undefined) {
+        eta.textContent = formatEta(data.eta_seconds);
       }
     }
 
@@ -228,21 +228,41 @@
               const logBox = document.getElementById("logBox");
               logBox.textContent = data.logs.join("\n");
               logBox.scrollTop = logBox.scrollHeight;
-              updateProgress(data.logs);
             }
+
+            updateProgressUI(data);
 
             if (data.status === "done") {
               clearInterval(pollingInterval);
               log("🎉 다운로드 완료!");
               if (data.zip_path) {
-                const link = document.createElement("a");
-                link.href = `/get_zip?path=${encodeURIComponent(data.zip_path)}`;
-                link.download = "ascode_codes.zip";
-                link.click();
+                const wrapper = document.getElementById("downloadLinkWrapper");
+                wrapper.innerHTML = `<a href="/get_zip?path=${encodeURIComponent(data.zip_path)}" download><button style='margin-top:1rem;padding:0.6rem 1.2rem;font-size:1rem;background:#28a745;color:#fff;border:none;border-radius:8px;'>📦 ZIP 다운로드</button></a>`;
               }
             }
           });
       }, 1500);
+    }
+
+    function startDownload() {
+      const userId = document.getElementById("userId").value;
+      log("📥 다운로드를 시작합니다...");
+
+      fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          log("⏳ 백그라운드 다운로드 시작됨...");
+          document.getElementById("downloadLinkWrapper").innerHTML = "";
+          pollStatus(userId);
+        } else {
+          log("❌ 다운로드 시작 실패: " + data.message);
+        }
+      });
     }
 
     document.addEventListener("DOMContentLoaded", () => {
