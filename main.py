@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-from downloader import login as ascode_login, download_user_codes_with_log
+from downloader import login as ascode_login, download_user_codes_with_log, count_user_submissions
 import os, time
 from threading import Thread
 
@@ -36,35 +36,35 @@ async def download(request: Request, background_tasks: BackgroundTasks):
     if not sess:
         return JSONResponse({"success": False, "message": "세션이 없습니다."})
 
-    # 초기화
+    total = count_user_submissions(sess, user_id)  # 총 제출 수 추정 함수
     download_status[user_id] = {
         "status": "running",
         "logs": [],
         "zip_path": None,
         "start_time": time.time(),
-        "progress": {"current": 0, "total": 0, "percent": 0.0}
+        "progress": {"current": 0, "total": total, "percent": 0.0}
     }
 
     def run_download():
         zip_path = None
-        for log in download_user_codes_with_log(sess, user_id):
-            download_status[user_id]["logs"].append(log)
+        downloaded = 0
+        total_count = total or 1
 
-            # ZIP 파일 경로 감지
+        for log in download_user_codes_with_log(sess, user_id):
+            downloaded += 1 if log.startswith("✅") else 0
+
+            progress_str = f"[{downloaded}/{total_count}] ({(downloaded/total_count)*100:.1f}%)"
+            download_status[user_id]["progress"] = {
+                "current": downloaded,
+                "total": total_count,
+                "percent": (downloaded / total_count) * 100
+            }
+
+            download_status[user_id]["logs"].append(f"{log}\n{progress_str}")
+
             if log.startswith("ZIP_READY:"):
                 zip_path = log.split("ZIP_READY:")[1].strip()
                 download_status[user_id]["zip_path"] = zip_path
-
-            # 진행률 정보 감지
-            if log.startswith("[") and "/" in log and "%" in log:
-                import re
-                match = re.search(r"\[(\d+)/(\d+)]\s+\((\d+(?:\.\d+)?)%\)", log)
-                if match:
-                    download_status[user_id]["progress"] = {
-                        "current": int(match[1]),
-                        "total": int(match[2]),
-                        "percent": float(match[3])
-                    }
 
         download_status[user_id]["status"] = "done"
 
