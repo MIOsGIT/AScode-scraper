@@ -8,9 +8,9 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 user_sessions = {}
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/status")
+async def get_status(user_id: str):
+    return background_tasks.get(user_id, {"status": "not started"})
 
 @app.post("/login")
 async def login(request: Request):
