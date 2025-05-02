@@ -340,6 +340,19 @@
   button.textContent = allChecked ? "전체 선택" : "전체 해제";
 }
 
+// 엔터로 로그인
+document.addEventListener("DOMContentLoaded", () => {
+      const userIdInput = document.getElementById("userId");
+      const passwordInput = document.getElementById("password");
+
+      function handleEnterKey(e) {
+        if (e.key === "Enter") login();
+      }
+
+      userIdInput.addEventListener("keydown", handleEnterKey);
+      passwordInput.addEventListener("keydown", handleEnterKey);
+    });
+
   </script>
 </body>
 </html>
