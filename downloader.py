@@ -214,3 +214,102 @@ def download_user_codes_with_log(session, user_id):
         yield f"ZIP_READY:{os.path.abspath(zip_path)}"
     else:
         yield "❌ ZIP 파일 생성에 실패했습니다."
+
+def get_submission_list(session, user_id):
+    submissions = []
+    top = None
+    prev_top = None
+
+    while True:
+        url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
+        if top:
+            url += f"&top={top}"
+
+        resp = session.get(url)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        table = soup.find('table')
+        if not table:
+            break
+
+        headers = [th.get_text(strip=True).lower() for th in table.find('tr').find_all('th')]
+        try:
+            runid_idx = headers.index('runid')
+            problem_idx = headers.index('problem')
+            lang_idx = headers.index('language')
+        except ValueError:
+            break
+
+        rows = table.find_all('tr')[1:]
+        for row in rows:
+            cols = row.find_all('td')
+            runid = cols[runid_idx].text.strip()
+            problem_id = cols[problem_idx].text.strip()
+            language = cols[lang_idx].text.strip()
+            submissions.append({
+                "runid": runid,
+                "problem_id": problem_id,
+                "language": language
+            })
+
+        prev_top = top
+        top, _ = get_next_page_top(soup)
+        if not top or top == prev_top:
+            break
+
+    return submissions
+
+
+
+def download_selected_runids(session, user_id, runids):
+    os.makedirs(SAVE_ROOT, exist_ok=True)
+    downloaded_problems = set()
+    total = len(runids)
+
+    for idx, runid in enumerate(runids, 1):
+        percent = (idx / total) * 100
+        source_url = f"{base_url}/showsource.php?id={runid}"
+        code_resp = session.get(source_url)
+        code_soup = BeautifulSoup(code_resp.text, 'html.parser')
+        code = code_soup.find('pre') or code_soup.find('textarea')
+
+        # 문제 ID와 언어 추출 시도
+        problem_id = f"problem_{runid}"
+        language = "txt"
+        try:
+            status_url = f"{base_url}/status.php?user_id={user_id}&jresult=4"
+            resp = session.get(status_url)
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            row = soup.find(string=runid)
+            if row:
+                tr = row.find_parent("tr")
+                tds = tr.find_all("td")
+                problem_id = tds[2].text.strip()
+                language = tds[4].text.strip()
+        except:
+            pass
+
+        downloaded_problems.add(problem_id)
+
+        if code and code.text.strip():
+            extension = get_file_extension(language)
+            folder = os.path.join(SAVE_ROOT, user_id, problem_id)
+            os.makedirs(folder, exist_ok=True)
+            file_path = os.path.join(folder, f"solution_{runid}{extension}")
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(code.text)
+                yield f"✅ {problem_id}번 코드 다운로드 완료 [{idx}/{total}] ({percent:.1f}%)"
+            except Exception as e:
+                yield f"❌ {problem_id} 저장 실패: {e} [{idx}/{total}] ({percent:.1f}%)"
+        else:
+            yield f"❌ {runid} 코드 없음 [{idx}/{total}] ({percent:.1f}%)"
+
+        time.sleep(DOWNLOAD_DELAY)
+
+    yield f"📊 선택한 문제 수: {len(downloaded_problems)}개, 제출 수: {total}개"
+    zip_path = zip_user_codes(user_id)
+    if zip_path:
+        yield f"ZIP_READY:{os.path.abspath(zip_path)}"
+    else:
+        yield "❌ ZIP 파일 생성에 실패했습니다."
+
