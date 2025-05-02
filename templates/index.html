@@ -193,24 +193,38 @@
     }
 
     async function login() {
-      const userId = document.getElementById("userId").value;
-      const password = document.getElementById("password").value;
+  const loginBtn = document.querySelector("button[onclick='login()']");
+  const originalText = loginBtn.textContent;
 
-      const res = await fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, password: password })
-      });
+  loginBtn.disabled = true;
+  loginBtn.textContent = "로그인 중..."; // 👈 상태 표시
 
-      const result = await res.json();
-      if (result.success) {
-        log("✅ 로그인 성공!");
-        document.getElementById("downloadBtn").disabled = false;
-        loadSubmissions();
-      } else {
-        log("❌ 로그인 실패!");
-      }
+  const userId = document.getElementById("userId").value;
+  const password = document.getElementById("password").value;
+
+  try {
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, password: password })
+    });
+
+    const result = await res.json();
+    if (result.success) {
+      log("✅ 로그인 성공!");
+      document.getElementById("downloadBtn").disabled = false;
+      loadSubmissions();
+    } else {
+      log("❌ 로그인 실패!");
     }
+  } catch (err) {
+    log("🚨 로그인 중 오류 발생");
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = originalText; // 👈 원래대로 복원
+  }
+}
+
 
     async function loadSubmissions() {
   const userId = document.getElementById("userId").value;
@@ -286,48 +300,72 @@
     }
 
     function startDownload() {
-      const userId = document.getElementById("userId").value;
-      log("📥 전체 다운로드를 시작합니다...");
+  const userId = document.getElementById("userId").value;
+  const downloadBtn = document.getElementById("downloadBtn");
 
-      fetch("/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          log("⏳ 백그라운드 다운로드 시작됨...");
-          document.getElementById("downloadLinkWrapper").innerHTML = "";
-          pollStatus(userId);
-        } else {
-          log("❌ 다운로드 시작 실패: " + data.message);
-        }
-      });
-    }
+  downloadBtn.disabled = true;
+  const originalText = downloadBtn.textContent;
+  downloadBtn.textContent = "다운로드 중...";
 
-    function downloadSelected() {
-      const userId = document.getElementById("userId").value;
-      const runids = Array.from(document.querySelectorAll("#submissionsContainer input[type='checkbox']:checked")).map(cb => cb.value);
-      if (runids.length === 0) {
-        alert("다운받을 제출을 선택해주세요!");
-        return;
+  log("📥 전체 다운로드를 시작합니다...");
+
+  fetch("/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        log("⏳ 백그라운드 다운로드 시작됨...");
+        document.getElementById("downloadLinkWrapper").innerHTML = "";
+        pollStatus(userId);
+      } else {
+        log("❌ 다운로드 시작 실패: " + data.message);
       }
-      log(`📥 선택한 ${runids.length}개의 제출 다운로드 시작...`);
-      fetch("/download_selected", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, runids })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          pollStatus(userId);
-        } else {
-          log("❌ 선택 다운로드 실패: " + data.message);
-        }
-      });
-    }
+    })
+    .finally(() => {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = originalText;
+    });
+}
+
+
+function downloadSelected() {
+  const userId = document.getElementById("userId").value;
+  const runids = Array.from(document.querySelectorAll("#submissionsContainer input[type='checkbox']:checked")).map(cb => cb.value);
+  const selectedBtn = document.getElementById("downloadSelectedBtn");
+
+  if (runids.length === 0) {
+    alert("다운받을 제출을 선택해주세요!");
+    return;
+  }
+
+  selectedBtn.disabled = true;
+  const originalText = selectedBtn.textContent;
+  selectedBtn.textContent = "선택 다운로드 중...";
+
+  log(`📥 선택한 ${runids.length}개의 제출 다운로드 시작...`);
+
+  fetch("/download_selected", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, runids })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        pollStatus(userId);
+      } else {
+        log("❌ 선택 다운로드 실패: " + data.message);
+      }
+    })
+    .finally(() => {
+      selectedBtn.disabled = false;
+      selectedBtn.textContent = originalText;
+    });
+}
+
 
 
     function toggleAllCheckboxes() {
