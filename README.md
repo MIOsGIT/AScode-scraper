@@ -12,7 +12,8 @@ ID / PW 입력 후 다운로드드
 Accepted 코드만 언어 확장자에 맞춰 저장됨
 예: solution_123456.cpp, solution_123457.py 등
 
-✨ 웹 다운로더 제작 중!
+✨ 웹 다운로더!
+https://ascode-scraper.onrender.com
 
 🙋‍♀️ 만든 사람
 MIO (MIOsGIT)
